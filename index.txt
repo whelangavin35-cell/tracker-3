@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>CDL Match Stat Tracker (Two-Team + Extended, Control + Zero Ticks)</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#151923; --muted:#79839b; --text:#e9ecf1;
+    --btn:#1e2430; --btn-hover:#242b3a; --ring:0 0 0 2px rgba(74,163,255,.3);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;background:#0f1115;color:var(--text)}
+  header{position:sticky;top:0;z-index:5;background:rgba(15,17,21,.75);backdrop-filter:blur(8px);border-bottom:1px solid #202633}
+  .wrap{max-width:1220px;margin:0 auto;padding:18px 16px}
+  h1{font-size:20px;margin:0 0 6px}
+  .sub{color:var(--muted);font-size:13px}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
+  .toolbar input,.toolbar select{background:#151923;color:var(--text);border:1px solid #2a3242;border-radius:8px;padding:10px 12px}
+  .btn{background:var(--btn);color:var(--text);border:1px solid #2a3242;border-radius:10px;padding:10px 14px;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:8px;user-select:none}
+  .btn:hover{background:var(--btn-hover)} .btn:active{transform:translateY(1px)}
+  .btn.primary{background:#1e2a1f;border-color:#27442a}.btn.blue{background:#1a2432;border-color:#24374f}
+  .btn.red{background:#321a1a;border-color:#4f2424}.btn.warn{background:#312514;border-color:#4f3a24}
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+  .tab-btn{padding:10px 14px;border-radius:10px;border:1px solid #2a3242;background:#151923;color:var(--text);cursor:pointer}
+  .tab-btn.active{outline:var(--ring);border-color:#4aa3ff}
+  main{max-width:1220px;margin:10px auto 60px;padding:0 16px;display:grid;gap:16px}
+  section.card{background:linear-gradient(180deg,#141a24 0%,#121720 100%);border:1px solid #202633;border-radius:16px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+  .card h2{margin:0 0 12px;font-size:18px}
+  .grid{display:grid;gap:12px}
+  .cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+  @media(max-width:1100px){.cols-4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:700px){.cols-3{grid-template-columns:repeat(2,minmax(0,1fr))}.cols-2{grid-template-columns:repeat(1,minmax(0,1fr))}}
+  .counter{padding:12px;border:1px solid #293244;border-radius:12px;background:#111521}
+  .counter .label{font-size:12px;color:var(--muted);margin-bottom:8px;display:flex;justify-content:space-between;gap:8px;align-items:center}
+  .counter .val{font-size:28px;font-weight:700;margin:2px 0 10px}
+  .counter .actions{display:flex;gap:8px}.counter .actions .btn{flex:1;justify-content:center}
+  .muted{color:var(--muted)} .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .pill{border:1px solid #2a3242;border-radius:999px;padding:6px 10px;font-size:12px;color:var(--muted)}
+  table{width:100%;border-collapse:collapse;border:1px solid #202633;background:#0f141e;border-radius:12px;overflow:hidden}
+  th,td{padding:10px;border-bottom:1px solid #202633;text-align:left} th{background:#121826;color:#cfe0ff;font-weight:600}
+  tr:last-child td{border-bottom:none}
+  .log{max-height:220px;overflow:auto;border:1px dashed #2a3242;border-radius:12px;padding:10px;background:#0e131c}
+  .badge{background:#1a2332;border:1px solid #2b3850;padding:6px 10px;border-radius:999px;font-size:12px;color:#cfe0ff}
+  .spacer{flex:1} .teamname{min-width:160px} .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;padding:2px 6px;border:1px solid #2a3242;border-radius:6px;background:#0f151e;color:#d8e1f3}
+  .tiny{font-size:11px}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>CDL Match Stat Tracker</h1>
+    <div class="sub">Choose an <strong>Active Team</strong>, then click. Autosaves. Undo with <span class="kbd">Ctrl/Cmd+Z</span>.</div>
+    <div class="toolbar">
+      <input id="matchName" placeholder="Match name (e.g., OpTic vs FaZe — Map 1)" style="min-width:260px">
+      <select id="gameMode">
+        <option value="hardpoint">Hardpoint</option>
+        <option value="snd">Search &amp; Destroy</option>
+        <option value="control">Control</option>
+      </select>
+      <input id="teamAName" class="teamname" placeholder="Team A (e.g., OpTic)">
+      <button class="btn" id="chooseA">Active: A</button>
+      <input id="teamBName" class="teamname" placeholder="Team B (e.g., FaZe)">
+      <button class="btn" id="chooseB">Active: B</button>
+      <button class="btn blue" id="exportCsvBtn">Export CSV</button>
+      <button class="btn" id="exportJsonBtn">Export JSON</button>
+      <button class="btn warn" id="resetBtn">Reset Current Mode</button>
+      <button class="btn red" id="newMatchBtn">New Match (All)</button>
+      <span class="spacer"></span>
+      <span class="pill tiny" id="autosaveStatus">Autosaved</span>
+    </div>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="hardpointTab">Hardpoint</button>
+      <button class="tab-btn" data-tab="sndTab">S&amp;D</button>
+      <button class="tab-btn" data-tab="controlTab">Control</button>
+      <button class="tab-btn" data-tab="playersTab">Players</button>
+      <button class="tab-btn" data-tab="logTab">Log</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- Hardpoint -->
+  <section class="card" id="hardpointTab">
+    <h2>Hardpoint</h2>
+    <div class="row" style="margin-bottom:12px">
+      <span class="muted">Per-Hill (P1–P4) — Breaks / Holds / Rotations Won (per team)</span>
+    </div>
+    <div class="grid cols-2" id="hpPerHill"></div>
+
+    <section style="margin-top:14px">
+      <div class="row" style="margin-bottom:8px">
+        <span class="muted">Team-level counters named “%” (tracked as counts): Rotation %, Hold %, Break %</span>
+      </div>
+      <div class="grid cols-2" id="hpTeamPct"></div>
+    </section>
+
+    <section style="margin-top:14px">
+      <div class="row" style="margin-bottom:8px"><span class="muted">Totals across all hills (per team)</span></div>
+      <div class="grid cols-2" id="hpTotals"></div>
+    </section>
+  </section>
+
+  <!-- S&D -->
+  <section class="card" id="sndTab" hidden>
+    <h2>Search &amp; Destroy</h2>
+    <div class="grid cols-2" id="sndCounters"></div>
+  </section>
+
+  <!-- Control (UPDATED with Zero Ticks buttons) -->
+  <section class="card" id="controlTab" hidden>
+    <h2>Control</h2>
+    <div class="grid cols-2" id="controlCounters"></div>
+    <div class="muted tiny" style="margin-top:8px">Note: “6 Ticks For/Allowed” are per-round tallies; “Ticks Gained/Allowed” remain overall totals.</div>
+  </section>
+
+  <!-- Players -->
+  <section class="card" id="playersTab" hidden>
+    <h2>Players</h2>
+    <div class="row" style="margin-bottom:12px">
+      <input id="playerNameInput" placeholder="Add player name" />
+      <select id="playerTeamSelect"><option value="A">Team A</option><option value="B">Team B</option></select>
+      <button class="btn blue" id="addPlayerBtn">Add Player</button>
+      <button class="btn" id="sortPlayersBtn">Sort (A→Z)</button>
+      <button class="btn warn" id="resetPlayersBtn">Reset Players</button>
+    </div>
+    <div class="grid cols-2">
+      <div>
+        <table id="playersTable">
+          <thead>
+          <tr>
+            <th>Player</th><th>Team</th>
+            <th>Kills</th><th>Deaths</th><th>+K</th><th>+D</th><th>−K</th><th>−D</th>
+            <th>FB</th><th>FD</th><th>+FB</th><th>+FD</th><th>−FB</th><th>−FD</th>
+          </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="grid cols-2">
+        <section class="counter">
+          <div class="label"><span id="teamATitle">Team A Totals</span></div>
+          <div class="row" style="gap:16px;flex-wrap:wrap">
+            <div><div class="muted">Kills</div><div class="val" id="teamAKills">0</div></div>
+            <div><div class="muted">Deaths</div><div class="val" id="teamADeaths">0</div></div>
+            <div><div class="muted">K/D</div><div class="val" id="teamAKD">0.00</div></div>
+            <div><div class="muted">FB</div><div class="val" id="teamAFB">0</div></div>
+            <div><div class="muted">FD</div><div class="val" id="teamAFD">0</div></div>
+          </div>
+        </section>
+        <section class="counter">
+          <div class="label"><span id="teamBTitle">Team B Totals</span></div>
+          <div class="row" style="gap:16px;flex-wrap:wrap">
+            <div><div class="muted">Kills</div><div class="val" id="teamBKills">0</div></div>
+            <div><div class="muted">Deaths</div><div class="val" id="teamBDeaths">0</div></div>
+            <div><div class="muted">K/D</div><div class="val" id="teamBKD">0.00</div></div>
+            <div><div class="muted">FB</div><div class="val" id="teamBFB">0</div></div>
+            <div><div class="muted">FD</div><div class="val" id="teamBFD">0</div></div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </section>
+
+  <!-- Log -->
+  <section class="card" id="logTab" hidden>
+    <h2>Action Log</h2>
+    <div class="row" style="margin-bottom:10px">
+      <button class="btn" id="undoBtn">Undo Last</button>
+      <span class="muted">or use <span class="kbd">Ctrl/Cmd+Z</span></span>
+    </div>
+    <div class="log" id="logBox"></div>
+  </section>
+</main>
+
+<script>
+(function(){
+  const STORAGE_KEY='cdl-tracker-v5'; // bumped for Zero Ticks buttons
+
+  const defaultState=()=>({
+    meta:{matchName:'',mode:'hardpoint',currentHill:'p1',activeTeam:'A'},
+    teams:{A:{name:'Team A'},B:{name:'Team B'}},
+
+    // Hardpoint per-hill, per-team + team-level "%"
+    hardpoint:{
+      hills:{
+        p1:{A:{breaks:0,holds:0,rotationsWon:0},B:{breaks:0,holds:0,rotationsWon:0}},
+        p2:{A:{breaks:0,holds:0,rotationsWon:0},B:{breaks:0,holds:0,rotationsWon:0}},
+        p3:{A:{breaks:0,holds:0,rotationsWon:0},B:{breaks:0,holds:0,rotationsWon:0}},
+        p4:{A:{breaks:0,holds:0,rotationsWon:0},B:{breaks:0,holds:0,rotationsWon:0}},
+      },
+      teamPct:{ A:{rotationPct:0,holdPct:0,breakPct:0}, B:{rotationPct:0,holdPct:0,breakPct:0} }
+    },
+
+    // SND per-team (extended)
+    snd:{
+      A:{ FB:0, defuse:0, plants:0, FBRW:0, FBRL:0, FDRW:0, FDRL:0, OPPRW:0, OPPRL:0, NPRW:0, NPRL:0, OWins:0, DWins:0 },
+      B:{ FB:0, defuse:0, plants:0, FBRW:0, FBRL:0, FDRW:0, FDRL:0, OPPRW:0, OPPRL:0, NPRW:0, NPRL:0, OWins:0, DWins:0 }
+    },
+
+    // Control per-team (UPDATED with zero ticks)
+    control:{
+      A:{
+        sixTicksFor:0, sixTicksAllowed:0,
+        rwLives:0, rlLives:0,
+        rwTime:0, rlTime:0,
+        ticksGained:0, ticksAllowed:0,
+        zeroTicksGained:0, zeroTicksAllowed:0
+      },
+      B:{
+        sixTicksFor:0, sixTicksAllowed:0,
+        rwLives:0, rlLives:0,
+        rwTime:0, rlTime:0,
+        ticksGained:0, ticksAllowed:0,
+        zeroTicksGained:0, zeroTicksAllowed:0
+      }
+    },
+
+    // Players (K/D + S&D per-player FB/FD)
+    players:[], // {id,name,team:'A'|'B',kills,deaths,fb,fd}
+    log:[]
+  });
+
+  let state=load()||defaultState();
+
+  // ---------- utils ----------
+  function save(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));flashAutosave();}
+  function load(){try{const d=localStorage.getItem(STORAGE_KEY);return d?JSON.parse(d):null}catch{return null}}
+  function resetMode(mode){
+    if(mode==='hardpoint') state.hardpoint = defaultState().hardpoint;
+    if(mode==='snd') state.snd = defaultState().snd;
+    if(mode==='control') state.control = defaultState().control;
+    if(mode==='players') state.players=[];
+    state.log.unshift({ts:Date.now(),text:`Reset ${mode}`,undo:null});
+    save();render();
+  }
+  function newMatchAll(){state=defaultState();save();render();}
+  function tlabel(t){return state.teams?.[t]?.name||(t==='A'?'Team A':'Team B')}
+  function flashAutosave(){const el=document.getElementById('autosaveStatus');el.textContent='Saved';el.style.outline='var(--ring)';setTimeout(()=>{el.textContent='Autosaved';el.style.outline='none'},800)}
+  const clamp=n=>Math.max(0,n|0);
+  function addLog(text,undo){state.log.unshift({ts:Date.now(),text,undo});if(state.log.length>500)state.log.length=500;}
+  function timeStr(ts){const d=new Date(ts);return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})}
+
+  // central dispatcher
+  function perform(action,p){
+    if(action==='hp-hill'){
+      const {hill,key,team,delta}=p;
+      const prev=state.hardpoint.hills[hill][team][key];
+      state.hardpoint.hills[hill][team][key]=clamp(prev+delta);
+      addLog(`${delta>0?'+':'−'} HP ${key} ${hill.toUpperCase()} for ${tlabel(team)}`,{type:'hp-hill',hill,key,team,prev});
+    }
+    if(action==='hp-pct'){
+      const {key,team,delta}=p;
+      const prev=state.hardpoint.teamPct[team][key];
+      state.hardpoint.teamPct[team][key]=clamp(prev+delta);
+      addLog(`${delta>0?'+':'−'} HP ${key.replace('Pct',' %')} for ${tlabel(team)}`,{type:'hp-pct',key,team,prev});
+    }
+    if(action==='snd'){
+      const {key,team,delta}=p;
+      const prev=state.snd[team][key];
+      state.snd[team][key]=clamp(prev+delta);
+      addLog(`${delta>0?'+':'−'} S&D ${key} for ${tlabel(team)}`,{type:'snd',key,team,prev});
+    }
+    if(action==='ctrl'){
+      const {key,team,delta}=p;
+      const prev=state.control[team][key];
+      state.control[team][key]=clamp(prev+delta);
+      const labels={
+        sixTicksFor:'6 Ticks For Rounds',
+        sixTicksAllowed:'6 Ticks Allowed Rounds',
+        rwLives:'Rounds Won by Lives',
+        rlLives:'Rounds Lost by Lives',
+        rwTime:'Rounds Won by Time',
+        rlTime:'Rounds Lost by Time',
+        ticksGained:'Ticks Gained',
+        ticksAllowed:'Ticks Allowed',
+        zeroTicksGained:'0 Ticks Gained',
+        zeroTicksAllowed:'0 Ticks Allowed'
+      };
+      addLog(`${delta>0?'+':'−'} Control ${labels[key]||key} for ${tlabel(team)}`,{type:'ctrl',key,team,prev});
+    }
+    if(action==='player'){
+      const {id,field,delta}=p;
+      const pl=state.players.find(x=>x.id===id); if(!pl) return;
+      const prev=pl[field]; pl[field]=clamp(prev+delta);
+      addLog(`${delta>0?'+':'−'} ${field.toUpperCase()} for ${pl.name} (${tlabel(pl.team)})`,{type:'player',id,field,prev});
+    }
+    save();render();
+  }
+
+  function undo(){
+    const last=state.log.find(x=>x.undo); if(!last) return;
+    const u=last.undo;
+    if(u.type==='hp-hill'){state.hardpoint.hills[u.hill][u.team][u.key]=u.prev;}
+    if(u.type==='hp-pct'){state.hardpoint.teamPct[u.team][u.key]=u.prev;}
+    if(u.type==='snd'){state.snd[u.team][u.key]=u.prev;}
+    if(u.type==='ctrl'){state.control[u.team][u.key]=u.prev;}
+    if(u.type==='player'){const p=state.players.find(x=>x.id===u.id); if(p) p[u.field]=u.prev;}
+    const i=state.log.indexOf(last); if(i>-1) state.log.splice(i,1);
+    save();render();
+  }
+
+  // ---------- UI helpers ----------
+  function counterEl({label,value,onPlus,onMinus,badge}){
+    const wrap=document.createElement('div');wrap.className='counter';
+    wrap.innerHTML=`<div class="label"><span>${label}</span>${badge?`<span class="badge">${badge}</span>`:''}</div>
+      <div class="val">${value}</div>
+      <div class="actions"><button class="btn primary">+1</button><button class="btn">−1</button></div>`;
+    const val=wrap.querySelector('.val');
+    wrap.querySelectorAll('.btn')[0].addEventListener('click',()=>{onPlus();val.textContent=(+val.textContent+1);});
+    wrap.querySelectorAll('.btn')[1].addEventListener('click',()=>{onMinus();val.textContent=Math.max(0,(+val.textContent-1));});
+    return wrap;
+  }
+
+  function renderTeamHeader(){
+    const aBtn=document.getElementById('chooseA'), bBtn=document.getElementById('chooseB');
+    aBtn.classList.toggle('active',state.meta.activeTeam==='A');
+    bBtn.classList.toggle('active',state.meta.activeTeam==='B');
+    aBtn.textContent=`Active: ${tlabel('A')}`; bBtn.textContent=`Active: ${tlabel('B')}`;
+    const aTitle=document.getElementById('teamATitle'); const bTitle=document.getElementById('teamBTitle');
+    if(aTitle) aTitle.textContent=`${tlabel('A')} Totals`;
+    if(bTitle) bTitle.textContent=`${tlabel('B')} Totals`;
+  }
+
+  // Hardpoint: per-hill
+  function renderHpPerHill(){
+    const cont=document.getElementById('hpPerHill'); cont.innerHTML='';
+    Object.entries(state.hardpoint.hills).forEach(([hill,obj])=>{
+      const card=document.createElement('section'); card.className='counter';
+      card.innerHTML=`<div class="label"><span>Hill ${hill.toUpperCase()}</span></div>`;
+      const grid=document.createElement('div'); grid.className='grid cols-2';
+
+      const makeCol=(team)=>{
+        const col=document.createElement('div'); col.className='grid cols-3';
+        [['breaks','Breaks'],['holds','Holds'],['rotationsWon','Rotations Won']].forEach(([key,lab])=>{
+          col.appendChild(counterEl({
+            label:`${lab} — ${tlabel(team)}`,
+            value:obj[team][key],
+            badge:(state.meta.activeTeam===team?'Active':''),
+            onPlus:()=>perform('hp-hill',{hill,key,team,delta:+1}),
+            onMinus:()=>perform('hp-hill',{hill,key,team,delta:-1})
+          }));
+        });
+        return col;
+      };
+      grid.appendChild(makeCol('A')); grid.appendChild(makeCol('B'));
+      card.appendChild(grid); cont.appendChild(card);
+    });
+  }
+
+  // Hardpoint: team-level %
+  function renderHpTeamPct(){
+    const cont=document.getElementById('hpTeamPct'); cont.innerHTML='';
+    const makeCol=(team)=>{
+      const col=document.createElement('div'); col.className='grid cols-3';
+      [['rotationPct','Rotation %'],['holdPct','Hold %'],['breakPct','Break %']].forEach(([key,lab])=>{
+        col.appendChild(counterEl({
+          label:`${lab} — ${tlabel(team)}`,
+          value:state.hardpoint.teamPct[team][key],
+          badge:(state.meta.activeTeam===team?'Active':''),
+          onPlus:()=>perform('hp-pct',{key,team,delta:+1}),
+          onMinus:()=>perform('hp-pct',{key,team,delta:-1})
+        }));
+      });
+      return col;
+    };
+    cont.appendChild(makeCol('A')); cont.appendChild(makeCol('B'));
+  }
+
+  // Hardpoint totals
+  function renderHpTotals(){
+    const cont=document.getElementById('hpTotals'); cont.innerHTML='';
+    const totals=(team)=>{const t={breaks:0,holds:0,rotationsWon:0}; for(const h of Object.values(state.hardpoint.hills)){t.breaks+=h[team].breaks;t.holds+=h[team].holds;t.rotationsWon+=h[team].rotationsWon;} return t;}
+    const mk=(team)=>{
+      const card=document.createElement('section'); card.className='counter';
+      const t=totals(team);
+      card.innerHTML=`<div class="label"><span>Total — ${tlabel(team)}</span></div>`;
+      const g=document.createElement('div'); g.className='grid cols-3';
+      [['breaks','Breaks'],['holds','Holds'],['rotationsWon','Rotations Won']].forEach(([k,lab])=>{
+        const w=document.createElement('div'); w.className='counter';
+        w.innerHTML=`<div class="label"><span>${lab}</span></div><div class="val">${t[k]}</div>`;
+        g.appendChild(w);
+      });
+      card.appendChild(g); return card;
+    };
+    cont.appendChild(mk('A')); cont.appendChild(mk('B'));
+  }
+
+  // SND per-team extended
+  function renderSND(){
+    const cont=document.getElementById('sndCounters'); cont.innerHTML='';
+    const keys=[['FB','First Blood (FB)'],['defuse','Defuse'],['plants','Plants'],
+      ['FBRW','First Blood Round Wins (FBRW)'],['FBRL','First Blood Round Losses (FBRL)'],
+      ['FDRW','First Death Round Wins (FDRW)'],['FDRL','First Death Round Losses (FDRL)'],
+      ['OPPRW','Off. Post Plant Round Wins (OPPRW)'],['OPPRL','Off. Post Plant Round Losses (OPPRL)'],
+      ['NPRW','No Plant Round Wins (NPRW)'],['NPRL','No Plant Round Losses (NPRL)'],
+      ['OWins','Offensive Round Wins (O Wins)'],['DWins','Defensive Round Wins (D Wins)']];
+    const makeCol=(team)=>{
+      const col=document.createElement('div'); col.className='grid cols-3';
+      keys.forEach(([key,label])=>{
+        col.appendChild(counterEl({
+          label:`${label} — ${tlabel(team)}`,
+          value:state.snd[team][key],
+          badge:(state.meta.activeTeam===team?'Active':''),
+          onPlus:()=>perform('snd',{key,team,delta:+1}),
+          onMinus:()=>perform('snd',{key,team,delta:-1})
+        }));
+      });
+      return col;
+    };
+    cont.appendChild(makeCol('A')); cont.appendChild(makeCol('B'));
+  }
+
+  // Control (with Zero Ticks)
+  function renderControl(){
+    const cont=document.getElementById('controlCounters'); cont.innerHTML='';
+    const keys=[
+      ['sixTicksFor','6 Ticks For Rounds'],
+      ['sixTicksAllowed','6 Ticks Allowed Rounds'],
+      ['rwLives','Rounds Won by Lives'],
+      ['rlLives','Rounds Lost by Lives'],
+      ['rwTime','Rounds Won by Time'],
+      ['rlTime','Rounds Lost by Time'],
+      ['ticksGained','Ticks Gained'],
+      ['ticksAllowed','Ticks Allowed'],
+      ['zeroTicksGained','0 Ticks Gained'],
+      ['zeroTicksAllowed','0 Ticks Allowed']
+    ];
+    const makeCol=(team)=>{
+      const col=document.createElement('div'); col.className='grid cols-2';
+      keys.forEach(([key,label])=>{
+        col.appendChild(counterEl({
+          label:`${label} — ${tlabel(team)}`,
+          value:state.control[team][key],
+          badge:(state.meta.activeTeam===team?'Active':''),
+          onPlus:()=>perform('ctrl',{key,team,delta:+1}),
+          onMinus:()=>perform('ctrl',{key,team,delta:-1})
+        }));
+      });
+      return col;
+    };
+    cont.appendChild(makeCol('A')); cont.appendChild(makeCol('B'));
+  }
+
+  // Players
+  function renderPlayers(){
+    const tbody=document.querySelector('#playersTable tbody'); tbody.innerHTML='';
+    let aK=0,aD=0,bK=0,bD=0,aFB=0,aFD=0,bFB=0,bFD=0;
+
+    state.players.forEach(p=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td>${p.name}</td><td>${tlabel(p.team)}</td>
+        <td>${p.kills||0}</td><td>${p.deaths||0}</td>
+        <td><button class="btn primary">+K</button></td><td><button class="btn blue">+D</button></td>
+        <td><button class="btn">−K</button></td><td><button class="btn">−D</button></td>
+        <td>${p.fb||0}</td><td>${p.fd||0}</td>
+        <td><button class="btn primary">+FB</button></td><td><button class="btn blue">+FD</button></td>
+        <td><button class="btn">−FB</button></td><td><button class="btn">−FD</button></td>`;
+      const btns=tr.querySelectorAll('button');
+      btns[0].addEventListener('click',()=>perform('player',{id:p.id,field:'kills',delta:+1}));
+      btns[1].addEventListener('click',()=>perform('player',{id:p.id,field:'deaths',delta:+1}));
+      btns[2].addEventListener('click',()=>perform('player',{id:p.id,field:'kills',delta:-1}));
+      btns[3].addEventListener('click',()=>perform('player',{id:p.id,field:'deaths',delta:-1}));
+      btns[4].addEventListener('click',()=>perform('player',{id:p.id,field:'fb',delta:+1}));
+      btns[5].addEventListener('click',()=>perform('player',{id:p.id,field:'fd',delta:+1}));
+      btns[6].addEventListener('click',()=>perform('player',{id:p.id,field:'fb',delta:-1}));
+      btns[7].addEventListener('click',()=>perform('player',{id:p.id,field:'fd',delta:-1}));
+      tbody.appendChild(tr);
+
+      if(p.team==='A'){aK+=p.kills||0;aD+=p.deaths||0;aFB+=p.fb||0;aFD+=p.fd||0;}
+      else{bK+=p.kills||0;bD+=p.deaths||0;bFB+=p.fb||0;bFD+=p.fd||0;}
+    });
+
+    const kd=(k,d)=> d?(k/d).toFixed(2):(k?'∞':'0.00');
+
+    const aKillsEl=document.getElementById('teamAKills'); if(aKillsEl) aKillsEl.textContent=aK;
+    const aDeathsEl=document.getElementById('teamADeaths'); if(aDeathsEl) aDeathsEl.textContent=aD;
+    const aKDEl=document.getElementById('teamAKD'); if(aKDEl) aKDEl.textContent=kd(aK,aD);
+    const aFBEl=document.getElementById('teamAFB'); if(aFBEl) aFBEl.textContent=aFB;
+    const aFDEl=document.getElementById('teamAFD'); if(aFDEl) aFDEl.textContent=aFD;
+
+    const bKillsEl=document.getElementById('teamBKills'); if(bKillsEl) bKillsEl.textContent=bK;
+    const bDeathsEl=document.getElementById('teamBDeaths'); if(bDeathsEl) bDeathsEl.textContent=bD;
+    const bKDEl=document.getElementById('teamBKD'); if(bKDEl) bKDEl.textContent=kd(bK,bD);
+    const bFBEl=document.getElementById('teamBFB'); if(bFBEl) bFBEl.textContent=bFB;
+    const bFDEl=document.getElementById('teamBFD'); if(bFDEl) bFDEl.textContent=bFD;
+  }
+
+  // Log
+  function renderLog(){
+    const box=document.getElementById('logBox'); box.innerHTML='';
+    if(!state.log.length){box.innerHTML='<span class="muted">No actions yet…</span>';return;}
+    state.log.forEach(it=>{
+      const row=document.createElement('div');row.className='row';row.style.marginBottom='6px';
+      row.innerHTML=`<span class="muted">${timeStr(it.ts)}</span> <span>${it.text}</span>`;
+      box.appendChild(row);
+    });
+  }
+
+  // tabs/meta
+  function renderTabs(){
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab.startsWith(state.meta.mode)));
+    document.getElementById('hardpointTab').hidden = state.meta.mode!=='hardpoint';
+    document.getElementById('sndTab').hidden = state.meta.mode!=='snd';
+    document.getElementById('controlTab').hidden = state.meta.mode!=='control';
+    document.getElementById('playersTab').hidden = state.meta.mode!=='players';
+    document.getElementById('logTab').hidden = state.meta.mode!=='log';
+    document.getElementById('gameMode').value=state.meta.mode;
+  }
+  function renderMeta(){
+    document.getElementById('matchName').value=state.meta.matchName||'';
+    document.getElementById('teamAName').value=state.teams.A.name||'';
+    document.getElementById('teamBName').value=state.teams.B.name||'';
+    renderTeamHeader();
+  }
+  function render(){
+    renderTabs(); renderMeta();
+    renderHpPerHill(); renderHpTeamPct(); renderHpTotals();
+    renderSND(); renderControl(); renderPlayers(); renderLog();
+  }
+
+  // ---------- export ----------
+  function sanitize(s){return (s||'').replaceAll(/[\n\r,]+/g,' ').trim();}
+  function downloadFile(filename,content,mime){const blob=new Blob([content],{type:mime});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),500);}
+  function exportJSON(){downloadFile('cdl-stats.json',JSON.stringify(state,null,2),'application/json');}
+  function exportCSV(){
+    const lines=[], m=sanitize(state.meta.matchName);
+    lines.push(`Match,${m}`); lines.push(`Timestamp,${new Date().toISOString()}`); lines.push(`Teams,${tlabel('A')},${tlabel('B')}`); lines.push('');
+
+    // Hardpoint per-hill
+    lines.push('Hardpoint (per hill, per team)'); lines.push('Hill,Team,Breaks,Holds,Rotations Won');
+    for(const [hill,v] of Object.entries(state.hardpoint.hills)){
+      lines.push(`${hill.toUpperCase()},${tlabel('A')},${v.A.breaks},${v.A.holds},${v.A.rotationsWon}`);
+      lines.push(`${hill.toUpperCase()},${tlabel('B')},${v.B.breaks},${v.B.holds},${v.B.rotationsWon}`);
+    }
+
+    // Hardpoint team-level %
+    lines.push(''); lines.push('Hardpoint (team-level “%” counters)'); lines.push('Team,Rotation %,Hold %,Break %');
+    lines.push(`${tlabel('A')},${state.hardpoint.teamPct.A.rotationPct},${state.hardpoint.teamPct.A.holdPct},${state.hardpoint.teamPct.A.breakPct}`);
+    lines.push(`${tlabel('B')},${state.hardpoint.teamPct.B.rotationPct},${state.hardpoint.teamPct.B.holdPct},${state.hardpoint.teamPct.B.breakPct}`);
+
+    // SND per-team
+    lines.push(''); lines.push('Search & Destroy (per team)');
+    lines.push('Team,FB,Defuse,Plants,FBRW,FBRL,FDRW,FDRL,OPPRW,OPPRL,NPRW,NPRL,O Wins,D Wins');
+    const A=state.snd.A,B=state.snd.B;
+    lines.push(`${tlabel('A')},${A.FB},${A.defuse},${A.plants},${A.FBRW},${A.FBRL},${A.FDRW},${A.FDRL},${A.OPPRW},${A.OPPRL},${A.NPRW},${A.NPRL},${A.OWins},${A.DWins}`);
+    lines.push(`${tlabel('B')},${B.FB},${B.defuse},${B.plants},${B.FBRW},${B.FBRL},${B.FDRW},${B.FDRL},${B.OPPRW},${B.OPPRL},${B.NPRW},${B.NPRL},${B.OWins},${B.DWins}`);
+
+    // Control per-team (with Zero Ticks)
+    lines.push(''); lines.push('Control (per team)');
+    lines.push('Team,6 Ticks For,6 Ticks Allowed,RW by Lives,RL by Lives,RW by Time,RL by Time,Ticks Gained,Ticks Allowed,0 Ticks Gained,0 Ticks Allowed');
+    const CA=state.control.A, CB=state.control.B;
+    lines.push(`${tlabel('A')},${CA.sixTicksFor},${CA.sixTicksAllowed},${CA.rwLives},${CA.rlLives},${CA.rwTime},${CA.rlTime},${CA.ticksGained},${CA.ticksAllowed},${CA.zeroTicksGained},${CA.zeroTicksAllowed}`);
+    lines.push(`${tlabel('B')},${CB.sixTicksFor},${CB.sixTicksAllowed},${CB.rwLives},${CB.rlLives},${CB.rwTime},${CB.rlTime},${CB.ticksGained},${CB.ticksAllowed},${CB.zeroTicksGained},${CB.zeroTicksAllowed}`);
+
+    // Players
+    lines.push(''); lines.push('Players'); lines.push('Player,Team,Kills,Deaths,KD,FB,FD');
+    state.players.forEach(p=>{const kd=p.deaths?(p.kills/p.deaths).toFixed(2):(p.kills?'∞':'0.00');lines.push(`${sanitize(p.name)},${tlabel(p.team)},${p.kills||0},${p.deaths||0},${kd},${p.fb||0},${p.fd||0}`);});
+
+    downloadFile('cdl-stats.csv',lines.join('\n'),'text/csv');
+  }
+
+  // ---------- events ----------
+  document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',()=>{
+    const t=b.dataset.tab; if(t.startsWith('hardpoint'))state.meta.mode='hardpoint';
+    if(t.startsWith('snd'))state.meta.mode='snd';
+    if(t.startsWith('control'))state.meta.mode='control';
+    if(t.startsWith('players'))state.meta.mode='players';
+    if(t.startsWith('log'))state.meta.mode='log';
+    save();render();
+  }));
+  document.getElementById('gameMode').addEventListener('change',e=>{state.meta.mode=e.target.value;save();render();});
+  document.getElementById('matchName').addEventListener('input',e=>{state.meta.matchName=e.target.value;save();});
+  document.getElementById('teamAName').addEventListener('input',e=>{state.teams.A.name=e.target.value||'Team A';save();renderTeamHeader();});
+  document.getElementById('teamBName').addEventListener('input',e=>{state.teams.B.name=e.target.value||'Team B';save();renderTeamHeader();});
+  document.getElementById('chooseA').addEventListener('click',()=>{state.meta.activeTeam='A';save();renderTeamHeader();});
+  document.getElementById('chooseB').addEventListener('click',()=>{state.meta.activeTeam='B';save();renderTeamHeader();});
+
+  document.getElementById('exportCsvBtn').addEventListener('click',exportCSV);
+  document.getElementById('exportJsonBtn').addEventListener('click',exportJSON);
+  document.getElementById('resetBtn').addEventListener('click',()=>{if(confirm(`Reset ${state.meta.mode} stats?`)) resetMode(state.meta.mode);});
+  document.getElementById('newMatchBtn').addEventListener('click',()=>{if(confirm('Start a brand new match (clear ALL stats)?')) newMatchAll();});
+
+  // players
+  document.getElementById('addPlayerBtn').addEventListener('click',()=>{
+    const name=document.getElementById('playerNameInput').value.trim();
+    const team=document.getElementById('playerTeamSelect').value;
+    if(!name) return;
+    state.players.push({id:crypto.randomUUID(),name,team,kills:0,deaths:0,fb:0,fd:0});
+    addLog(`Added player ${name} (${tlabel(team)})`,null);
+    document.getElementById('playerNameInput').value='';
+    save();render();
+  });
+  document.getElementById('sortPlayersBtn').addEventListener('click',()=>{state.players.sort((a,b)=>a.name.localeCompare(b.name));save();render();});
+  document.getElementById('resetPlayersBtn').addEventListener('click',()=>{if(confirm('Remove all players and their stats?')) resetMode('players');});
+
+  // undo + shortcuts
+  document.getElementById('undoBtn').addEventListener('click',undo);
+  window.addEventListener('keydown',(e)=>{
+    const isMac=/Mac/i.test(navigator.platform);
+    if((isMac&&e.metaKey&&e.key==='z')||(!isMac&&e.ctrlKey&&e.key==='z')){e.preventDefault();undo();}
+    if(!e.ctrlKey&&!e.metaKey){
+      if(['1','2','3','4'].includes(e.key)){state.meta.currentHill='p'+e.key;save();}
+      if(e.key.toLowerCase()==='a'){state.meta.activeTeam='A';save();renderTeamHeader();}
+      if(e.key.toLowerCase()==='b'){state.meta.activeTeam='B';save();renderTeamHeader();}
+    }
+  });
+
+  // initial
+  render();
+})();
+</script>
+</body>
+</html>
